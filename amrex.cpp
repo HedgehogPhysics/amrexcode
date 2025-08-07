@@ -225,9 +225,12 @@ AmrLevelAdv::variableSetUp ()
   int lo_bc[BL_SPACEDIM];
   int hi_bc[BL_SPACEDIM];
 
-  for (int i = 0; i < BL_SPACEDIM; ++i) {
-  lo_bc[i] = hi_bc[i] = BCType::foextrap; // Transmissive boundaries
-  }
+  // for (int i = 0; i < BL_SPACEDIM; ++i) {
+  // lo_bc[i] = hi_bc[i] = BCType::foextrap; // Transmissive boundaries
+  // }
+
+  lo_bc[1] = hi_bc[1] = BCType::foextrap;
+  lo_bc[0] = hi_bc[0] = BCType::int_dir;
 
 BCRec bc(lo_bc, hi_bc); // Reuse for all components
 StateDescriptor::BndryFunc bndryfunc(nullfill);
@@ -409,16 +412,16 @@ for (MFIter mfi(S_new); mfi.isValid(); ++mfi)
     
     Real rho, vx, vy, vz, bx, by, bz, pres;
 
-    if (x <= 400.0)
+    if (y <= 400)
     {
         rho  = 1.00000;
         vx   = 0.00000;
         vy   = 0.00000;
         vz   = 0.00000;
-        bx   = 0.75000;
+        bx   = 1;
         // bx = 1.00000;
         // by = 0.75000;
-        by   = 1.00000;
+        by   = 0.75;
         bz   = 0.00000;
         pres = 1.00000;
     }
@@ -428,10 +431,10 @@ for (MFIter mfi(S_new); mfi.isValid(); ++mfi)
         vx   = 0.00000;
         vy   = 0.00000;
         vz   = 0.00000;
-        bx   = 0.75000;
+        bx   = -1;
         // bx = -1.00000;
         // by = 0.75000;
-        by   = -1.00000;
+        by   = 0.75;
         bz   = 0.00000;
         pres = 0.10000;
     }
@@ -803,8 +806,8 @@ AmrLevelAdv::advance (Real time,
     }
 
     // We need to compute boundary conditions again after each update
-    Sborder.FillBoundary(geom.periodicity()); // Gemini doesn't like this line, but I think it's ok... Ghost cells don't need to be updated by this condition, the
-    
+    Sborder.FillBoundary(geom.periodicity());  
+
     // The fluxes now need scaling for the reflux command.
     // This scaling is by the size of the boundary through which the flux passes, e.g. the x-flux needs scaling by the dy, dz and dt
     if(do_reflux)
