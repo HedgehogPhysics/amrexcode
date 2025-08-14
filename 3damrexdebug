@@ -17,7 +17,7 @@
 using namespace amrex;
 
 int      AmrLevelAdv::verbose         = 0;
-Real     AmrLevelAdv::cfl             = 0.9;  // Default value - can be overwritten in settings file
+Real     AmrLevelAdv::cfl             = 0.5;  // Default value - can be overwritten in settings file
 int      AmrLevelAdv::do_reflux       = 1;
 
 //int      AmrLevelAdv::NUM_STATE       = 8;  // One variable in the state
@@ -647,6 +647,28 @@ AmrLevelAdv::advance (Real time,
 //     amrex::Print() << "[DEBUG] End of BC check.\n\n";
 // }
   FillPatcherFill(Sborder, 0, NUM_STATE, NUM_GROW, time, Phi_Type, 0);
+  // Add this block for debugging
+// Add this corrected block for debugging
+{
+  const int rho_comp = 0;
+  
+  for (MFIter mfi(Sborder); mfi.isValid(); ++mfi)
+  {
+      const Box& bx = mfi.growntilebox();
+      const auto& fab = Sborder.array(mfi);
+
+      // The fix is here: Changed [=] to [&] to capture by reference
+      amrex::Loop(bx, [&] (int i, int j, int k)
+      {
+          // Only print for the cell at the origin to avoid huge output
+          if (i == 0 && j == 0 && k == 0) {
+              Real rho_val = fab(i, j, k, rho_comp);
+              amrex::Print() << "CHECKING CELL BEFORE UPDATE (0,0,0) on Grid " << mfi.index() 
+                             << ": rho = " << rho_val << "\n";
+          }
+      });
+  }
+}
 
   //const auto dxVect = geom.CellSizeArray();
 
@@ -747,7 +769,7 @@ AmrLevelAdv::advance (Real time,
       const auto& halfuRarr = halfuR.array(mfi);
       const auto& halfuLarr = halfuL.array(mfi);
       const Box& bx = mfi.tilebox();
-      std::cout << bx << std::endl;
+      //std::cout << bx << std::endl;
       const auto& fluxArr = fluxes[d].array(mfi);
 
 
@@ -832,7 +854,38 @@ AmrLevelAdv::advance (Real time,
     }
     
   }
+  // DEBUGGING BLOCK: Check rho values in Sborder before the final copy
+{
+  amrex::Print() << "\n--- DEBUG: Checking Sborder right before MultiFab::Copy ---\n";
+  const int rho_comp = 0; // Assuming rho is component 0
+
+  // Create a host-side copy of Sborder to safely read its values on the CPU
+  MultiFab Sborder_host(Sborder.boxArray(), Sborder.DistributionMap(),
+                        Sborder.nComp(), Sborder.nGrowVect());
+  MultiFab::Copy(Sborder_host, Sborder, 0, 0, Sborder.nComp(), Sborder.nGrowVect());
   
+  for (MFIter mfi(Sborder_host); mfi.isValid(); ++mfi)
+  {
+      // We are interested in the valid region that will be copied.
+      const Box& bx = mfi.tilebox();
+      const auto& fab = Sborder_host.array(mfi);
+
+      // Use amrex::Loop on the CPU to print values.
+      // Capture mfi by reference [&] to avoid copy errors.
+      amrex::Loop(bx, [&] (int i, int j, int k)
+      {
+          // Print for a specific cell to avoid too much output.
+          // Let's check the corner cell where you saw "-nan".
+          if (i == 0 && j == 0 && k == 0)
+          {
+              Real rho_val = fab(i, j, k, rho_comp);
+              amrex::Print() << "Grid " << mfi.index() << ", Cell (" << i << "," << j << "," << k
+                             << ") rho AFTER update = " << rho_val << "\n";
+          }
+      });
+  }
+  amrex::Print() << "--- DEBUG: End of Sborder check ---\n\n";
+}
 
   // The updated data is now copied to the S_new multifab.  This means
   // it is now accessible through the get_new_data command, and AMReX
@@ -1419,7 +1472,7 @@ Real AmrLevelAdv::computeMaxWaveSpeed(const MultiFab& S, Real gamma) const
             const Real kinetic = 0.5 * rho * (vx*vx + vy*vy + vz*vz);
             const Real magnetic = 0.5 * (Bx*Bx + By*By + Bz*Bz);
             const Real pressure = (gamma - 1.0) * (energy - kinetic - magnetic);
-
+            //std::cout << "i = " <<  i << ", j = " << j << "k = " << k << std::endl;
             // Avoid unphysical pressure (optional guard)
             if (pressure <= 0.0 || rho <= 0.0) return {0.0};
 
